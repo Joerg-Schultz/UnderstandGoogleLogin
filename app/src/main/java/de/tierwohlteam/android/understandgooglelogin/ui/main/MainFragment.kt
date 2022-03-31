@@ -6,6 +6,7 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.fragment.app.activityViewModels
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
@@ -18,7 +19,7 @@ class MainFragment : Fragment() {
         fun newInstance() = MainFragment()
     }
 
-    private lateinit var viewModel: MainViewModel
+    private val statisticsViewModel: MainViewModel by activityViewModels()
 
     // https://developers.google.com/identity/one-tap/android/get-saved-credentials#kotlin
     private lateinit var oneTapClient: SignInClient
@@ -52,12 +53,6 @@ class MainFragment : Fragment() {
             // Automatically sign in when exactly one credential is retrieved.
             .setAutoSelectEnabled(true)
             .build()
-    }
-
-    override fun onActivityCreated(savedInstanceState: Bundle?) {
-        super.onActivityCreated(savedInstanceState)
-        viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
-        // TODO: Use the ViewModel
     }
 
 }
