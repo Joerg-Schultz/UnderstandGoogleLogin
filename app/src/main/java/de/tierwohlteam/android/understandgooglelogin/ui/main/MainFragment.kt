@@ -1,5 +1,6 @@
 package de.tierwohlteam.android.understandgooglelogin.ui.main
 
+import android.content.Intent
 import android.content.IntentSender
 import androidx.lifecycle.ViewModelProvider
 import android.os.Bundle
@@ -14,11 +15,16 @@ import androidx.fragment.app.activityViewModels
 import com.google.android.gms.auth.api.identity.BeginSignInRequest
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.auth.api.identity.SignInClient
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import de.tierwohlteam.android.understandgooglelogin.R
 import de.tierwohlteam.android.understandgooglelogin.databinding.MainFragmentBinding
 
 val TAG = "ONETAP"
 val REQ_ONE_TAP = 111
+private var showOneTapUI = true
+private var isLoggedIn = false
+
 class MainFragment : Fragment() {
 
     companion object {
@@ -62,25 +68,82 @@ class MainFragment : Fragment() {
             .build()
 
         binding.btnLogin.setOnClickListener {
-            activity?.let { it1 ->
-                oneTapClient.beginSignIn(signInRequest)
-                    .addOnSuccessListener(it1) { result ->
-                        try {
-                            startIntentSenderForResult(
-                                result.pendingIntent.intentSender, REQ_ONE_TAP,
-                                null, 0, 0, 0, null)
-                        } catch (e: IntentSender.SendIntentException) {
-                            Log.e(TAG, "Couldn't start One Tap UI: ${e.localizedMessage}")
+            if (isLoggedIn) {
+                oneTapClient.signOut()
+                isLoggedIn = false
+                binding.btnLogin.text = "Login"
+                binding.message.text = "You are logged out"
+            } else {
+                activity?.let { it1 ->
+                    oneTapClient.beginSignIn(signInRequest)
+                        .addOnSuccessListener(it1) { result ->
+                            try {
+                                startIntentSenderForResult(
+                                    result.pendingIntent.intentSender, REQ_ONE_TAP,
+                                    null, 0, 0, 0, null
+                                )
+                            } catch (e: IntentSender.SendIntentException) {
+                                Log.e(TAG, "Couldn't start One Tap UI: ${e.localizedMessage}")
+                            }
                         }
-                    }
-                    .addOnFailureListener(it1) { e ->
-                        // No saved credentials found. Launch the One Tap sign-up flow, or
-                        // do nothing and continue presenting the signed-out UI.
-                        Log.d(TAG, e.localizedMessage)
-                    }
+                        .addOnFailureListener(it1) { e ->
+                            // No saved credentials found. Launch the One Tap sign-up flow, or
+                            // do nothing and continue presenting the signed-out UI.
+                            Log.d(TAG, e.localizedMessage)
+                        }
+                }
             }
         }
-
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        when (requestCode) {
+            REQ_ONE_TAP -> {
+                try {
+                    val credential = oneTapClient.getSignInCredentialFromIntent(data)
+                    val idToken = credential.googleIdToken
+                    val username = credential.id
+                    val password = credential.password
+                    when {
+                        idToken != null -> {
+                            // Got an ID token from Google. Use it to authenticate
+                            // with your backend.
+                            Log.d(TAG, "Got ID token\n $idToken.")
+                            isLoggedIn = true
+                            binding.btnLogin.text = "Log Out"
+                            binding.message.text = idToken
+                        }
+                        password != null -> {
+                            // Got a saved username and password. Use them to authenticate
+                            // with your backend.
+                            Log.d(TAG, "Got password $password and username $username.")
+                        }
+                        else -> {
+                            // Shouldn't happen.
+                            Log.d(TAG, "No ID token or password!")
+                        }
+                    }
+                } catch (e: ApiException) {
+                    when (e.statusCode) {
+                        CommonStatusCodes.CANCELED -> {
+                            Log.d(TAG, "One-tap dialog was closed.")
+                            // Don't re-prompt the user.
+                            showOneTapUI = false
+                        }
+                        CommonStatusCodes.NETWORK_ERROR -> {
+                            Log.d(TAG, "One-tap encountered a network error.")
+                            // Try again or just ignore.
+                        }
+                        else -> {
+                            Log.d(
+                                TAG, "Couldn't get credential from result." +
+                                        " (${e.localizedMessage})"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
