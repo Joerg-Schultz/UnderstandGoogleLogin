@@ -109,7 +109,7 @@ class MainFragment : Fragment() {
                         idToken != null -> {
                             // Got an ID token from Google. Use it to authenticate
                             // with your backend.
-                            Log.d(TAG, "Got ID token\n $idToken.")
+                            Log.d(TAG, "Got ID token\n $idToken")
                             isLoggedIn = true
                             binding.btnLogin.text = "Log Out"
                             binding.message.text = idToken
